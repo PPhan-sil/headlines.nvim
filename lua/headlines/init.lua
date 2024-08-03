@@ -51,6 +51,8 @@ M.config = {
         },
         bullets = { "◉", "○", "✸", "✿" },
         codeblock_highlight = "CodeBlock",
+        codeblock_minimum_len = 100,
+        codeblock_padding = 4,
         dash_highlight = "Dash",
         dash_string = "-",
         quote_highlight = "Quote",
@@ -95,6 +97,8 @@ M.config = {
         },
         bullets = { "◉", "○", "✸", "✿" },
         codeblock_highlight = "CodeBlock",
+        codeblock_minimum_len = 100,
+        codeblock_padding = 4,
         dash_highlight = "Dash",
         dash_string = "-",
         quote_highlight = "Quote",
@@ -143,6 +147,8 @@ M.config = {
         },
         bullets = { "◉", "○", "✸", "✿" },
         codeblock_highlight = "CodeBlock",
+        codeblock_minimum_len = 100,
+        codeblock_padding = 4,
         dash_highlight = "Dash",
         dash_string = "-",
         doubledash_highlight = "DoubleDash",
@@ -188,6 +194,8 @@ M.config = {
         },
         bullets = { "◉", "○", "✸", "✿" },
         codeblock_highlight = "CodeBlock",
+        codeblock_minimum_len = 100,
+        codeblock_padding = 4,
         dash_highlight = "Dash",
         dash_string = "-",
         quote_highlight = "Quote",
@@ -357,23 +365,46 @@ M.refresh = function()
             end
 
             if capture == "codeblock" and c.codeblock_highlight then
-                nvim_buf_set_extmark(bufnr, M.namespace, start_row, 0, {
-                    end_col = 0,
-                    end_row = end_row,
-                    hl_group = c.codeblock_highlight,
-                    hl_eol = true,
-                })
-
+                local minimum_len = c.codeblock_minimum_len
+                local reverse_hl_group = M.make_reverse_highlight(c.codeblock_highlight)
                 local start_line = vim.api.nvim_buf_get_lines(bufnr, start_row, start_row + 1, false)[1]
                 local _, padding = start_line:find "^ +"
                 local codeblock_padding = math.max((padding or 0) - left_offset, 0)
+                local max_line_length = minimum_len
+                for i = start_row, end_row - 1 do
+                    local len = vim.fn.strwidth(vim.fn.getline(i + 1))
+                    max_line_length = math.max(max_line_length, len)
+                end
 
-                if codeblock_padding > 0 then
-                    for i = start_row, end_row - 1 do
+                for i = start_row, end_row - 1 do
+                    local len = vim.fn.strwidth(vim.fn.getline(i + 1))
+                    local extend_len = max_line_length - len + c.codeblock_padding - math.max(0, left_offset - len)
+                    if i < start_row + 1 or i > end_row - 2 then
+                        -- Highlight for fence of codeblock -- compatible with conceal levels
                         nvim_buf_set_extmark(bufnr, M.namespace, i, 0, {
-                            virt_text = { { string.rep(" ", codeblock_padding), "Normal" } },
-                            virt_text_win_col = 0,
-                            priority = 1,
+                            end_row = i + 1,
+                            hl_group = c.codeblock_highlight,
+                            hl_eol = true,
+                        })
+                        nvim_buf_set_extmark(bufnr, M.namespace, i, 0, {
+                            virt_text = { { string.rep(" ", vim.fn.winwidth(0)), reverse_hl_group } },
+                            virt_text_win_col = math.max(len + extend_len - left_offset, 0),
+                        })
+                        nvim_buf_set_extmark(bufnr, M.namespace, i, 0, {
+                            end_row = i + 1,
+                            virt_text = { { string.rep(" ", codeblock_padding), reverse_hl_group } },
+                            virt_text_pos = "overlay",
+                        })
+                    else
+                        -- Highlight for code portion of codeblock
+                        nvim_buf_set_extmark(bufnr, M.namespace, i, codeblock_padding, {
+                            end_col = 0,
+                            end_row = i + 1,
+                            hl_group = c.codeblock_highlight,
+                        })
+                        nvim_buf_set_extmark(bufnr, M.namespace, i, 0, {
+                            virt_text = { { string.rep(" ", extend_len), c.codeblock_highlight } },
+                            virt_text_win_col = math.max(len - left_offset, 0),
                         })
                     end
                 end
