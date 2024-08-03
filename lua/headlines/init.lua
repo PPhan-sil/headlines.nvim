@@ -40,6 +40,7 @@ M.config = {
             ]]
         ),
         headline_highlights = { "Headline" },
+        headline_padding = 4,
         bullet_highlights = {
             "@text.title.1.marker.markdown",
             "@text.title.2.marker.markdown",
@@ -83,6 +84,7 @@ M.config = {
         ),
         treesitter_language = "markdown",
         headline_highlights = { "Headline" },
+        headline_padding = 4,
         bullet_highlights = {
             "@text.title.1.marker.markdown",
             "@text.title.2.marker.markdown",
@@ -130,6 +132,7 @@ M.config = {
             ]]
         ),
         headline_highlights = { "Headline" },
+        headline_padding = 4,
         bullet_highlights = {
             "@neorg.headings.1.prefix",
             "@neorg.headings.2.prefix",
@@ -172,6 +175,7 @@ M.config = {
             ]]
         ),
         headline_highlights = { "Headline" },
+        headline_padding = 4,
         bullet_highlights = {
             "@org.headline.level1",
             "@org.headline.level2",
@@ -261,7 +265,6 @@ M.refresh = function()
     local root = syntax_tree[1]:root()
     local win_view = vim.fn.winsaveview()
     local left_offset = win_view.leftcol
-    local width = vim.api.nvim_win_get_width(0)
     local last_fat_headline = -1
 
     for _, match, metadata in c.query:iter_matches(root, bufnr) do
@@ -269,6 +272,7 @@ M.refresh = function()
             local capture = c.query.captures[id]
             local start_row, start_column, end_row, end_column =
                 unpack(vim.tbl_extend("force", { node:range() }, (metadata[id] or {}).range or {}))
+            local width = vim.fn.strwidth(vim.fn.getline(start_row + 1))
 
             if capture == "headline" and c.headline_highlights then
                 -- vim.treesitter.query.get_node_text() is deprecated, use vim.treesitter.get_node_text() instead.
@@ -290,13 +294,17 @@ M.refresh = function()
                     hl_group = hl_group,
                     virt_text = virt_text,
                     virt_text_pos = "overlay",
-                    hl_eol = true,
+                })
+                local extend_len = c.headline_padding - math.max(0, left_offset - width)
+                nvim_buf_set_extmark(bufnr, M.namespace, start_row, 0, {
+                    virt_text = { { string.rep(" ", extend_len), hl_group } },
+                    virt_text_win_col = math.max(width - left_offset, 0),
                 })
 
                 if c.fat_headlines then
                     local reverse_hl_group = M.make_reverse_highlight(hl_group)
 
-                    local padding_above = { { c.fat_headline_upper_string:rep(width), reverse_hl_group } }
+                    local padding_above = { { c.fat_headline_upper_string:rep(width + extend_len), reverse_hl_group } }
                     if start_row > 0 then
                         local line_above = vim.api.nvim_buf_get_lines(bufnr, start_row - 1, start_row, false)[1]
                         if line_above == "" and start_row - 1 ~= last_fat_headline then
@@ -314,7 +322,7 @@ M.refresh = function()
                         end
                     end
 
-                    local padding_below = { { c.fat_headline_lower_string:rep(width), reverse_hl_group } }
+                    local padding_below = { { c.fat_headline_lower_string:rep(width + extend_len), reverse_hl_group } }
                     local line_below = vim.api.nvim_buf_get_lines(bufnr, start_row + 1, start_row + 2, false)[1]
                     if line_below == "" then
                         nvim_buf_set_extmark(bufnr, M.namespace, start_row + 1, 0, {
